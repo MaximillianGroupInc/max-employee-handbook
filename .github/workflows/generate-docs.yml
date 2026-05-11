@@ -1,0 +1,72 @@
+name: Generate Handbook Documents
+
+on:
+  push:
+    paths:
+      - 'handbook.md'
+      - '.github/workflows/generate-docs.yml'
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Pandoc and LaTeX
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y pandoc texlive-xetex texlive-fonts-recommended texlive-fonts-extra fonts-liberation
+
+      - name: Generate DOCX
+        run: |
+          pandoc handbook.md \
+            --from=markdown \
+            --to=docx \
+            --output=handbook.docx \
+            --table-of-contents \
+            --toc-depth=2 \
+            --highlight-style=tango
+
+      - name: Generate PDF
+        run: |
+          pandoc handbook.md \
+            --from=markdown \
+            --to=pdf \
+            --output=handbook.pdf \
+            --pdf-engine=xelatex \
+            --variable=geometry:margin=1in \
+            --variable=fontsize:11pt \
+            --variable=mainfont:"Liberation Serif" \
+            --variable=sansfont:"Liberation Sans" \
+            --variable=monofont:"Liberation Mono" \
+            --variable=colorlinks:true \
+            --variable=linkcolor:blue \
+            --table-of-contents \
+            --toc-depth=2 \
+            --highlight-style=tango
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: handbook-documents
+          path: |
+            handbook.docx
+            handbook.pdf
+          retention-days: 90
+
+      - name: Commit generated documents to repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add handbook.docx handbook.pdf
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore: regenerate handbook.docx and handbook.pdf [skip ci]"
+            git push
+          fi
